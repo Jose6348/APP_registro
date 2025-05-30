@@ -1,21 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Slot, useRouter } from 'expo-router';
+import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-
-function RootLayoutNav() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/login');
-  }, []);
-
-  return <Slot />;
-}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -30,7 +19,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <RootLayoutNav />
+      <Slot />
       <StatusBar style="auto" />
     </ThemeProvider>
   );
