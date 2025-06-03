@@ -1,92 +1,230 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Mock de alunos
-const alunos = [
-  { id: '1', name: 'João Silva', age: 12, class: 'Turma A' },
-  { id: '2', name: 'Maria Santos', age: 11, class: 'Turma B' },
-  { id: '3', name: 'Pedro Oliveira', age: 13, class: 'Turma A' },
-];
+// Tipos
+interface Student {
+  _id: string;
+  name: string;
+  age: number;
+  class: string;
+}
 
-// Mock de medidas físicas
-const medidas = [
-  { id: '1', alunoId: '1', data: '2024-06-01', peso: '60', altura: '1.65', circunferenciaBraco: '28', circunferenciaCintura: '70', circunferenciaQuadril: '90' },
-  { id: '2', alunoId: '2', data: '2024-06-02', peso: '55', altura: '1.60', circunferenciaBraco: '25', circunferenciaCintura: '68', circunferenciaQuadril: '88' },
-];
+interface Medida {
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
+  data: string;
+  peso: number;
+  altura: number;
+  circunferenciaBraco: number;
+  circunferenciaCintura: number;
+  circunferenciaQuadril: number;
+}
 
-// Mock de sinais vitais
-const sinais = [
-  { id: '1', alunoId: '1', data: '2024-06-01', pressaoArterial: '120/80', frequenciaCardiaca: '80', frequenciaRespiratoria: '18' },
-  { id: '2', alunoId: '2', data: '2024-06-02', pressaoArterial: '110/70', frequenciaCardiaca: '75', frequenciaRespiratoria: '17' },
-];
+interface SinalVital {
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
+  data: string;
+  pressaoArterial: string;
+  frequenciaCardiaca: number;
+  frequenciaRespiratoria: number;
+}
 
-// Mock de comportamento
-const comportamentos = [
-  { id: '1', alunoId: '1', data: '2024-06-01', observacao: 'Aluno apresentou bom comportamento.' },
-  { id: '2', alunoId: '2', data: '2024-06-02', observacao: 'Aluno disperso em parte da aula.' },
-];
+interface Comportamento {
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
+  data: string;
+  observacao: string;
+}
+
+const API_URL = 'http://localhost:3000/api';
 
 export default function RelatoriosScreen() {
-  // Exemplo de cálculo de média de peso
-  const mediaPeso = medidas.length
-    ? (
-        medidas.reduce((acc, m) => acc + parseFloat(m.peso), 0) / medidas.length
-      ).toFixed(2)
-    : '0';
+  const [alunos, setAlunos] = useState<Student[]>([]);
+  const [selectedAluno, setSelectedAluno] = useState<Student | null>(null);
+  const [medidas, setMedidas] = useState<Medida[]>([]);
+  const [sinais, setSinais] = useState<SinalVital[]>([]);
+  const [comportamentos, setComportamentos] = useState<Comportamento[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Exemplo de cálculo de média de altura
-  const mediaAltura = medidas.length
-    ? (
-        medidas.reduce((acc, m) => acc + parseFloat(m.altura), 0) / medidas.length
-      ).toFixed(2)
-    : '0';
+  useEffect(() => {
+    fetchAlunos();
+  }, []);
+
+  useEffect(() => {
+    if (selectedAluno) {
+      fetchAlunoData(selectedAluno._id);
+    }
+  }, [selectedAluno]);
+
+  const fetchAlunos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/students`);
+      const data = await response.json();
+      setAlunos(data);
+      setLoading(false);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os alunos');
+      setLoading(false);
+    }
+  };
+
+  const fetchAlunoData = async (alunoId: string) => {
+    setLoading(true);
+    try {
+      // Buscar medidas
+      const medidasResponse = await fetch(`${API_URL}/medidas/aluno/${alunoId}`);
+      const medidasData = await medidasResponse.json();
+      setMedidas(medidasData);
+
+      // Buscar sinais vitais
+      const sinaisResponse = await fetch(`${API_URL}/sinais-vitais/aluno/${alunoId}`);
+      const sinaisData = await sinaisResponse.json();
+      setSinais(sinaisData);
+
+      // Buscar comportamentos
+      const comportamentosResponse = await fetch(`${API_URL}/comportamentos/aluno/${alunoId}`);
+      const comportamentosData = await comportamentosResponse.json();
+      setComportamentos(comportamentosData);
+
+      setLoading(false);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os dados do aluno');
+      setLoading(false);
+    }
+  };
+
+  const renderAlunoCard = ({ item }: { item: Student }) => (
+    <TouchableOpacity
+      style={[
+        styles.alunoCard,
+        selectedAluno?._id === item._id && styles.selectedAlunoCard,
+      ]}
+      onPress={() => setSelectedAluno(item)}
+    >
+      <Text style={styles.alunoName}>{item.name}</Text>
+      <Text style={styles.alunoInfo}>Idade: {item.age} anos</Text>
+      <Text style={styles.alunoInfo}>Turma: {item.class}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderMedidas = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Medidas Físicas</Text>
+      {medidas.length > 0 ? (
+        medidas.map(medida => (
+          <View key={medida._id} style={styles.recordCard}>
+            <Text style={styles.recordDate}>
+              Data: {new Date(medida.data).toLocaleDateString()}
+            </Text>
+            <Text>Peso: {medida.peso} kg</Text>
+            <Text>Altura: {medida.altura} m</Text>
+            <Text>Circunferência do Braço: {medida.circunferenciaBraco} cm</Text>
+            <Text>Circunferência da Cintura: {medida.circunferenciaCintura} cm</Text>
+            <Text>Circunferência do Quadril: {medida.circunferenciaQuadril} cm</Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.noData}>Nenhuma medida registrada</Text>
+      )}
+    </View>
+  );
+
+  const renderSinaisVitais = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Sinais Vitais</Text>
+      {sinais.length > 0 ? (
+        sinais.map(sinal => (
+          <View key={sinal._id} style={styles.recordCard}>
+            <Text style={styles.recordDate}>
+              Data: {new Date(sinal.data).toLocaleDateString()}
+            </Text>
+            <Text>Pressão Arterial: {sinal.pressaoArterial} mmHg</Text>
+            <Text>Frequência Cardíaca: {sinal.frequenciaCardiaca} bpm</Text>
+            <Text>Frequência Respiratória: {sinal.frequenciaRespiratoria} irpm</Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.noData}>Nenhum sinal vital registrado</Text>
+      )}
+    </View>
+  );
+
+  const renderComportamentos = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Comportamentos</Text>
+      {comportamentos.length > 0 ? (
+        comportamentos.map(comportamento => (
+          <View key={comportamento._id} style={styles.recordCard}>
+            <Text style={styles.recordDate}>
+              Data: {new Date(comportamento.data).toLocaleDateString()}
+            </Text>
+            <Text>Observação: {comportamento.observacao}</Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.noData}>Nenhum registro de comportamento</Text>
+      )}
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Relatórios</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Relatórios por Aluno</Text>
+      
+      <FlatList
+        data={alunos}
+        renderItem={renderAlunoCard}
+        keyExtractor={item => item._id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.alunosList}
+      />
 
-      <View style={styles.card}>
-        <Ionicons name="people" size={28} color="#007AFF" />
-        <Text style={styles.cardTitle}>Total de Alunos</Text>
-        <Text style={styles.cardValue}>{alunos.length}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Ionicons name="body" size={28} color="#007AFF" />
-        <Text style={styles.cardTitle}>Média de Peso</Text>
-        <Text style={styles.cardValue}>{mediaPeso} kg</Text>
-        <Text style={styles.cardTitle}>Média de Altura</Text>
-        <Text style={styles.cardValue}>{mediaAltura} m</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Ionicons name="pulse" size={28} color="#007AFF" />
-        <Text style={styles.cardTitle}>Últimos Sinais Vitais</Text>
-        {sinais.slice(0, 3).map(s => (
-          <Text key={s.id} style={styles.cardDetail}>
-            {alunos.find(a => a.id === s.alunoId)?.name || 'Aluno'}: {s.pressaoArterial} mmHg, {s.frequenciaCardiaca} bpm, {s.frequenciaRespiratoria} irpm
+      {selectedAluno ? (
+        <ScrollView style={styles.reportContainer}>
+          <Text style={styles.selectedAlunoTitle}>
+            Relatório de {selectedAluno.name}
           </Text>
-        ))}
-      </View>
-
-      <View style={styles.card}>
-        <Ionicons name="analytics" size={28} color="#007AFF" />
-        <Text style={styles.cardTitle}>Últimas Observações de Comportamento</Text>
-        {comportamentos.slice(0, 3).map(c => (
-          <Text key={c.id} style={styles.cardDetail}>
-            {alunos.find(a => a.id === c.alunoId)?.name || 'Aluno'}: {c.observacao}
+          {renderMedidas()}
+          {renderSinaisVitais()}
+          {renderComportamentos()}
+        </ScrollView>
+      ) : (
+        <View style={styles.noSelectionContainer}>
+          <Ionicons name="person" size={64} color="#ccc" />
+          <Text style={styles.noSelectionText}>
+            Selecione um aluno para ver seu relatório
           </Text>
-        ))}
-      </View>
-
-      {/* Aqui você pode adicionar gráficos usando react-native-chart-kit ou outra lib */}
-      {/* Exemplo de integração futura com backend:
-        useEffect(() => {
-          fetch('URL_DO_BACKEND/relatorios').then(...)
-        }, []);
-      */}
-    </ScrollView>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -94,43 +232,101 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#007AFF',
-    marginBottom: 20,
+    margin: 16,
     textAlign: 'center',
   },
-  card: {
+  alunosList: {
+    maxHeight: 120,
+    paddingHorizontal: 16,
+  },
+  alunoCard: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 20,
-    marginBottom: 15,
+    padding: 16,
+    marginRight: 12,
+    width: 200,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    alignItems: 'center',
   },
-  cardTitle: {
-    fontSize: 18,
+  selectedAlunoCard: {
+    borderColor: '#007AFF',
+    borderWidth: 2,
+  },
+  alunoName: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginTop: 10,
+    marginBottom: 4,
   },
-  cardValue: {
-    fontSize: 22,
-    color: '#007AFF',
+  alunoInfo: {
+    fontSize: 14,
+    color: '#666',
+  },
+  reportContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  selectedAlunoTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  cardDetail: {
-    fontSize: 15,
-    color: '#444',
-    marginTop: 4,
+    color: '#333',
+    marginBottom: 16,
     textAlign: 'center',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 12,
+  },
+  recordCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  recordDate: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 8,
+  },
+  noData: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  noSelectionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  noSelectionText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
   },
 }); 
