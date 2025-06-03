@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,29 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 
-// Temporary type for student data
+// API URL configuration
+const getApiUrl = () => {
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000/api'; // Android Emulator
+  } else if (Platform.OS === 'ios') {
+    return 'http://localhost:3000/api'; // iOS Simulator
+  } else {
+    return 'http://localhost:3000/api'; // Web
+  }
+};
+
+const API_URL = getApiUrl();
+
+// Student type
 type Student = {
-  id: string;
+  _id: string;
   name: string;
   age: number;
   class: string;
@@ -20,17 +38,116 @@ type Student = {
 
 export default function AlunosScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [students, setStudents] = useState<Student[]>([
-    // Sample data
-    { id: '1', name: 'João Silva', age: 12, class: 'Turma A' },
-    { id: '2', name: 'Maria Santos', age: 11, class: 'Turma B' },
-    { id: '3', name: 'Pedro Oliveira', age: 13, class: 'Turma A' },
-  ]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [newStudent, setNewStudent] = useState({
+    name: '',
+    age: '',
+    class: '',
+  });
+
+  // Fetch students
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/students`);
+      if (!response.ok) {
+        throw new Error('Erro ao carregar alunos');
+      }
+      const data = await response.json();
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Erro ao buscar alunos:', error);
+      setStudents([]);
+      Alert.alert('Erro', 'Não foi possível carregar os alunos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
 
   const handleAddStudent = () => {
-    // TODO: Implement add student functionality
-    console.log('Add student pressed');
+    setNewStudent({ name: '', age: '', class: '' });
+    setModalVisible(true);
   };
+
+  const handleSubmit = async () => {
+    // Validação dos campos
+    if (!newStudent.name.trim()) {
+      Alert.alert('Erro', 'Por favor, insira o nome do aluno');
+      return;
+    }
+    if (!newStudent.age.trim()) {
+      Alert.alert('Erro', 'Por favor, insira a idade do aluno');
+      return;
+    }
+    if (!newStudent.class.trim()) {
+      Alert.alert('Erro', 'Por favor, insira a turma do aluno');
+      return;
+    }
+
+    const age = parseInt(newStudent.age);
+    if (isNaN(age) || age <= 0) {
+      Alert.alert('Erro', 'Por favor, insira uma idade válida');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      console.log('Enviando dados:', {
+        name: newStudent.name,
+        age: age,
+        class: newStudent.class,
+      });
+
+      const response = await fetch(`${API_URL}/students`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newStudent.name,
+          age: age,
+          class: newStudent.class,
+        }),
+      });
+
+      console.log('Resposta do servidor:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao adicionar aluno');
+      }
+
+      const addedStudent = await response.json();
+      console.log('Aluno adicionado:', addedStudent);
+
+      setStudents(prevStudents => [...prevStudents, addedStudent]);
+      setModalVisible(false);
+      setNewStudent({ name: '', age: '', class: '' });
+      Alert.alert('Sucesso', 'Aluno adicionado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao adicionar aluno:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível adicionar o aluno';
+      Alert.alert('Erro', errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditStudent = (student: Student) => {
+    // TODO: Implement edit student modal/form
+    Alert.alert('Editar Aluno', 'Funcionalidade em desenvolvimento');
+  };
+
+  const filteredStudents = students.filter(student =>
+    student.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const renderStudentItem = ({ item }: { item: Student }) => (
     <TouchableOpacity style={styles.studentCard}>
@@ -39,7 +156,10 @@ export default function AlunosScreen() {
         <Text style={styles.studentDetails}>Idade: {item.age} anos</Text>
         <Text style={styles.studentDetails}>Turma: {item.class}</Text>
       </View>
-      <TouchableOpacity style={styles.editButton}>
+      <TouchableOpacity 
+        style={styles.editButton}
+        onPress={() => handleEditStudent(item)}
+      >
         <Ionicons name="pencil" size={20} color="#007AFF" />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -65,11 +185,94 @@ export default function AlunosScreen() {
       </View>
 
       <FlatList
-        data={students}
+        data={filteredStudents}
         renderItem={renderStudentItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
+        refreshing={loading}
+        onRefresh={fetchStudents}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {loading ? 'Carregando alunos...' : 'Nenhum aluno encontrado'}
+            </Text>
+          </View>
+        }
       />
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => !submitting && setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Adicionar Novo Aluno</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Nome do aluno"
+              value={newStudent.name}
+              onChangeText={(text) => setNewStudent({ ...newStudent, name: text })}
+              editable={!submitting}
+            />
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Idade"
+              value={newStudent.age}
+              onChangeText={(text) => setNewStudent({ ...newStudent, age: text })}
+              keyboardType="numeric"
+              editable={!submitting}
+            />
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Turma"
+              value={newStudent.class}
+              onChangeText={(text) => setNewStudent({ ...newStudent, class: text })}
+              editable={!submitting}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  if (!submitting) {
+                    setModalVisible(false);
+                    setNewStudent({ name: '', age: '', class: '' });
+                  }
+                }}
+                disabled={submitting}
+              >
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.submitButton,
+                  submitting && styles.submitButtonDisabled
+                ]}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={[styles.buttonText, styles.submitButtonText]}>
+                    Adicionar
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -150,5 +353,78 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  submitButton: {
+    backgroundColor: '#007AFF',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#007AFF80',
+  },
+  buttonText: {
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  submitButtonText: {
+    color: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 }); 
