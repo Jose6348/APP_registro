@@ -34,10 +34,12 @@ mongoose.connect(uri, {
 const studentRoutes = require('./routes/students');
 const medidaRoutes = require('./routes/medidas');
 const sinalVitalRoutes = require('./routes/sinais-vitais');
+const comportamentoRoutes = require('./routes/comportamentos');
 
 app.use('/api/students', studentRoutes);
 app.use('/api/medidas', medidaRoutes);
 app.use('/api/sinais-vitais', sinalVitalRoutes);
+app.use('/api/comportamentos', comportamentoRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

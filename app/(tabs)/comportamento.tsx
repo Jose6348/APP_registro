@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -10,74 +10,106 @@ import {
   TextInput,
   SafeAreaView,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 
 // Tipo para um aluno
 interface Student {
-  id: string;
+  _id: string;
   name: string;
   age: number;
   class: string;
 }
 
-// Mock de alunos (igual ao de alunos.tsx)
-const alunosMock: Student[] = [
-  { id: '1', name: 'João Silva', age: 12, class: 'Turma A' },
-  { id: '2', name: 'Maria Santos', age: 11, class: 'Turma B' },
-  { id: '3', name: 'Pedro Oliveira', age: 13, class: 'Turma A' },
-];
-
 // Tipo para um registro de comportamento
 interface Comportamento {
-  id: string;
-  alunoId: string;
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
   data: string;
   observacao: string;
 }
 
+const API_URL = 'http://localhost:3000/api';
+
 export default function ComportamentoScreen() {
   const router = useRouter();
-  const [comportamentos, setComportamentos] = useState<Comportamento[]>([
-    {
-      id: '1',
-      alunoId: '1',
-      data: '2024-06-01',
-      observacao: 'Aluno apresentou bom comportamento e participou das atividades.',
-    },
-  ]);
+  const [comportamentos, setComportamentos] = useState<Comportamento[]>([]);
+  const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [form, setForm] = useState<Omit<Comportamento, 'id'>>({
-    alunoId: alunosMock[0].id,
+  const [form, setForm] = useState<Omit<Comportamento, '_id' | 'alunoId'> & { alunoId: string }>({
+    alunoId: '',
     data: '',
     observacao: '',
   });
 
-  const handleAddComportamento = () => {
-    setComportamentos([
-      {
-        id: (Math.random() * 100000).toFixed(0),
-        ...form,
-      },
-      ...comportamentos,
-    ]);
-    setForm({
-      alunoId: alunosMock[0].id,
-      data: '',
-      observacao: '',
-    });
-    setModalVisible(false);
+  useEffect(() => {
+    fetchAlunos();
+    fetchComportamentos();
+  }, []);
+
+  const fetchAlunos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/students`);
+      const data = await response.json();
+      setAlunos(data);
+      if (data.length > 0) {
+        setForm(prev => ({ ...prev, alunoId: data[0]._id }));
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os alunos');
+    }
   };
 
-  const getAlunoNome = (alunoId: string) => {
-    const aluno = alunosMock.find(a => a.id === alunoId);
-    return aluno ? aluno.name : 'Aluno não encontrado';
+  const fetchComportamentos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/comportamentos`);
+      const data = await response.json();
+      setComportamentos(data);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os registros de comportamento');
+    }
+  };
+
+  const handleAddComportamento = async () => {
+    try {
+      const response = await fetch(`${API_URL}/comportamentos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar registro de comportamento');
+      }
+
+      const novoComportamento = await response.json();
+      setComportamentos([novoComportamento, ...comportamentos]);
+      setForm({
+        alunoId: alunos[0]?._id || '',
+        data: '',
+        observacao: '',
+      });
+      setModalVisible(false);
+      Alert.alert('Sucesso', 'Registro de comportamento salvo com sucesso!');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível salvar o registro de comportamento');
+    }
+  };
+
+  const getAlunoNome = (alunoId: { _id: string; name: string }) => {
+    return alunoId.name;
   };
 
   const renderComportamento = ({ item }: { item: Comportamento }) => (
     <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {item.data}</Text>
+      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
       <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
       <Text style={styles.cardObs}>Observação: {item.observacao}</Text>
     </View>
@@ -98,7 +130,7 @@ export default function ComportamentoScreen() {
       <FlatList
         data={comportamentos}
         renderItem={renderComportamento}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
       />
@@ -120,8 +152,8 @@ export default function ComportamentoScreen() {
                   onValueChange={value => setForm(f => ({ ...f, alunoId: value }))}
                   style={styles.picker}
                 >
-                  {alunosMock.map(aluno => (
-                    <Picker.Item key={aluno.id} label={aluno.name} value={aluno.id} />
+                  {alunos.map(aluno => (
+                    <Picker.Item key={aluno._id} label={aluno.name} value={aluno._id} />
                   ))}
                 </Picker>
               </View>
