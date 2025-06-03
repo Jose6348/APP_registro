@@ -32,7 +32,10 @@ mongoose.connect(uri, {
 
 // Routes
 const studentRoutes = require('./routes/students');
+const medidaRoutes = require('./routes/medidas');
+
 app.use('/api/students', studentRoutes);
+app.use('/api/medidas', medidaRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

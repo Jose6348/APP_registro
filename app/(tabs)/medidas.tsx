@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,29 +10,26 @@ import {
   TextInput,
   SafeAreaView,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 
 // Tipo para um aluno
 interface Student {
-  id: string;
+  _id: string;
   name: string;
   age: number;
   class: string;
 }
 
-// Mock de alunos (igual ao de alunos.tsx)
-const alunosMock: Student[] = [
-  { id: '1', name: 'João Silva', age: 12, class: 'Turma A' },
-  { id: '2', name: 'Maria Santos', age: 11, class: 'Turma B' },
-  { id: '3', name: 'Pedro Oliveira', age: 13, class: 'Turma A' },
-];
-
 // Tipo para um registro de medidas físicas
 interface Medida {
-  id: string;
-  alunoId: string;
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
   data: string;
   peso: string;
   altura: string;
@@ -41,23 +38,15 @@ interface Medida {
   circunferenciaQuadril: string;
 }
 
+const API_URL = 'http://localhost:3000/api';
+
 export default function MedidasScreen() {
   const router = useRouter();
-  const [medidas, setMedidas] = useState<Medida[]>([
-    {
-      id: '1',
-      alunoId: '1',
-      data: '2024-06-01',
-      peso: '60',
-      altura: '1.65',
-      circunferenciaBraco: '28',
-      circunferenciaCintura: '70',
-      circunferenciaQuadril: '90',
-    },
-  ]);
+  const [medidas, setMedidas] = useState<Medida[]>([]);
+  const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [form, setForm] = useState<Omit<Medida, 'id'>>({
-    alunoId: alunosMock[0].id,
+  const [form, setForm] = useState<Omit<Medida, '_id' | 'alunoId'> & { alunoId: string }>({
+    alunoId: '',
     data: '',
     peso: '',
     altura: '',
@@ -66,34 +55,73 @@ export default function MedidasScreen() {
     circunferenciaQuadril: '',
   });
 
-  const handleAddMedida = () => {
-    setMedidas([
-      {
-        id: (Math.random() * 100000).toFixed(0),
-        ...form,
-      },
-      ...medidas,
-    ]);
-    setForm({
-      alunoId: alunosMock[0].id,
-      data: '',
-      peso: '',
-      altura: '',
-      circunferenciaBraco: '',
-      circunferenciaCintura: '',
-      circunferenciaQuadril: '',
-    });
-    setModalVisible(false);
+  useEffect(() => {
+    fetchAlunos();
+    fetchMedidas();
+  }, []);
+
+  const fetchAlunos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/students`);
+      const data = await response.json();
+      setAlunos(data);
+      if (data.length > 0) {
+        setForm(prev => ({ ...prev, alunoId: data[0]._id }));
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os alunos');
+    }
   };
 
-  const getAlunoNome = (alunoId: string) => {
-    const aluno = alunosMock.find(a => a.id === alunoId);
-    return aluno ? aluno.name : 'Aluno não encontrado';
+  const fetchMedidas = async () => {
+    try {
+      const response = await fetch(`${API_URL}/medidas`);
+      const data = await response.json();
+      setMedidas(data);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as medidas');
+    }
+  };
+
+  const handleAddMedida = async () => {
+    try {
+      const response = await fetch(`${API_URL}/medidas`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar medida');
+      }
+
+      const novaMedida = await response.json();
+      setMedidas([novaMedida, ...medidas]);
+      setForm({
+        alunoId: alunos[0]?._id || '',
+        data: '',
+        peso: '',
+        altura: '',
+        circunferenciaBraco: '',
+        circunferenciaCintura: '',
+        circunferenciaQuadril: '',
+      });
+      setModalVisible(false);
+      Alert.alert('Sucesso', 'Medida registrada com sucesso!');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível salvar a medida');
+    }
+  };
+
+  const getAlunoNome = (alunoId: { _id: string; name: string }) => {
+    return alunoId.name;
   };
 
   const renderMedida = ({ item }: { item: Medida }) => (
     <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {item.data}</Text>
+      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
       <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
       <Text>Peso: {item.peso} kg</Text>
       <Text>Altura: {item.altura} m</Text>
@@ -118,7 +146,7 @@ export default function MedidasScreen() {
       <FlatList
         data={medidas}
         renderItem={renderMedida}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
       />
@@ -140,8 +168,8 @@ export default function MedidasScreen() {
                   onValueChange={value => setForm(f => ({ ...f, alunoId: value }))}
                   style={styles.picker}
                 >
-                  {alunosMock.map(aluno => (
-                    <Picker.Item key={aluno.id} label={aluno.name} value={aluno.id} />
+                  {alunos.map(aluno => (
+                    <Picker.Item key={aluno._id} label={aluno.name} value={aluno._id} />
                   ))}
                 </Picker>
               </View>
