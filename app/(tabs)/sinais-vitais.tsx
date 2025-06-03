@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -10,82 +10,112 @@ import {
   TextInput,
   SafeAreaView,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 
 // Tipo para um aluno
 interface Student {
-  id: string;
+  _id: string;
   name: string;
   age: number;
   class: string;
 }
 
-// Mock de alunos (igual ao de alunos.tsx)
-const alunosMock: Student[] = [
-  { id: '1', name: 'João Silva', age: 12, class: 'Turma A' },
-  { id: '2', name: 'Maria Santos', age: 11, class: 'Turma B' },
-  { id: '3', name: 'Pedro Oliveira', age: 13, class: 'Turma A' },
-];
-
 // Tipo para um registro de sinais vitais
 interface SinalVital {
-  id: string;
-  alunoId: string;
+  _id: string;
+  alunoId: {
+    _id: string;
+    name: string;
+  };
   data: string;
   pressaoArterial: string;
   frequenciaCardiaca: string;
   frequenciaRespiratoria: string;
 }
 
+const API_URL = 'http://localhost:3000/api';
+
 export default function SinaisVitaisScreen() {
   const router = useRouter();
-  const [sinais, setSinais] = useState<SinalVital[]>([
-    {
-      id: '1',
-      alunoId: '1',
-      data: '2024-06-01',
-      pressaoArterial: '120/80',
-      frequenciaCardiaca: '80',
-      frequenciaRespiratoria: '18',
-    },
-  ]);
+  const [sinais, setSinais] = useState<SinalVital[]>([]);
+  const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [form, setForm] = useState<Omit<SinalVital, 'id'>>({
-    alunoId: alunosMock[0].id,
+  const [form, setForm] = useState<Omit<SinalVital, '_id' | 'alunoId'> & { alunoId: string }>({
+    alunoId: '',
     data: '',
     pressaoArterial: '',
     frequenciaCardiaca: '',
     frequenciaRespiratoria: '',
   });
 
-  const handleAddSinal = () => {
-    setSinais([
-      {
-        id: (Math.random() * 100000).toFixed(0),
-        ...form,
-      },
-      ...sinais,
-    ]);
-    setForm({
-      alunoId: alunosMock[0].id,
-      data: '',
-      pressaoArterial: '',
-      frequenciaCardiaca: '',
-      frequenciaRespiratoria: '',
-    });
-    setModalVisible(false);
+  useEffect(() => {
+    fetchAlunos();
+    fetchSinais();
+  }, []);
+
+  const fetchAlunos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/students`);
+      const data = await response.json();
+      setAlunos(data);
+      if (data.length > 0) {
+        setForm(prev => ({ ...prev, alunoId: data[0]._id }));
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os alunos');
+    }
   };
 
-  const getAlunoNome = (alunoId: string) => {
-    const aluno = alunosMock.find(a => a.id === alunoId);
-    return aluno ? aluno.name : 'Aluno não encontrado';
+  const fetchSinais = async () => {
+    try {
+      const response = await fetch(`${API_URL}/sinais-vitais`);
+      const data = await response.json();
+      setSinais(data);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os sinais vitais');
+    }
+  };
+
+  const handleAddSinal = async () => {
+    try {
+      const response = await fetch(`${API_URL}/sinais-vitais`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar sinal vital');
+      }
+
+      const novoSinal = await response.json();
+      setSinais([novoSinal, ...sinais]);
+      setForm({
+        alunoId: alunos[0]?._id || '',
+        data: '',
+        pressaoArterial: '',
+        frequenciaCardiaca: '',
+        frequenciaRespiratoria: '',
+      });
+      setModalVisible(false);
+      Alert.alert('Sucesso', 'Sinal vital registrado com sucesso!');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível salvar o sinal vital');
+    }
+  };
+
+  const getAlunoNome = (alunoId: { _id: string; name: string }) => {
+    return alunoId.name;
   };
 
   const renderSinal = ({ item }: { item: SinalVital }) => (
     <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {item.data}</Text>
+      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
       <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
       <Text>Pressão Arterial: {item.pressaoArterial} mmHg</Text>
       <Text>Frequência Cardíaca: {item.frequenciaCardiaca} bpm</Text>
@@ -108,7 +138,7 @@ export default function SinaisVitaisScreen() {
       <FlatList
         data={sinais}
         renderItem={renderSinal}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
       />
@@ -130,8 +160,8 @@ export default function SinaisVitaisScreen() {
                   onValueChange={value => setForm(f => ({ ...f, alunoId: value }))}
                   style={styles.picker}
                 >
-                  {alunosMock.map(aluno => (
-                    <Picker.Item key={aluno.id} label={aluno.name} value={aluno.id} />
+                  {alunos.map(aluno => (
+                    <Picker.Item key={aluno._id} label={aluno.name} value={aluno._id} />
                   ))}
                 </Picker>
               </View>
