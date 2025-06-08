@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Modal,
   TextInput,
   SafeAreaView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
+import { getApiUrl } from '../../utils/api';
 
 // Tipo para um aluno
 interface Student {
@@ -41,6 +41,7 @@ export default function ComportamentoScreen() {
   const [comportamentos, setComportamentos] = useState<Comportamento[]>([]);
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
   const [form, setForm] = useState<Omit<Comportamento, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
     data: '',
@@ -107,13 +108,62 @@ export default function ComportamentoScreen() {
     return alunoId.name;
   };
 
-  const renderComportamento = ({ item }: { item: Comportamento }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
-      <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
-      <Text style={styles.cardObs}>Observação: {item.observacao}</Text>
+  const toggleAluno = (alunoId: string) => {
+    setExpandedAlunos(prev => ({
+      ...prev,
+      [alunoId]: !prev[alunoId]
+    }));
+  };
+
+  const getComportamentosByAluno = (alunoId: string) => {
+    return comportamentos.filter(comportamento => comportamento.alunoId._id === alunoId)
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  };
+
+  const renderComportamentoCard = (comportamento: Comportamento) => (
+    <View style={styles.comportamentoCard}>
+      <Text style={styles.comportamentoDate}>
+        Data: {new Date(comportamento.data).toLocaleDateString()}
+      </Text>
+      <Text style={styles.comportamentoObs}>
+        {comportamento.observacao}
+      </Text>
     </View>
   );
+
+  const renderAlunoAccordion = (aluno: Student) => {
+    const alunoComportamentos = getComportamentosByAluno(aluno._id);
+    const isExpanded = expandedAlunos[aluno._id];
+
+    return (
+      <View key={aluno._id} style={styles.alunoAccordion}>
+        <TouchableOpacity
+          style={styles.alunoHeader}
+          onPress={() => toggleAluno(aluno._id)}
+        >
+          <View style={styles.alunoHeaderContent}>
+            <Text style={styles.alunoName}>{aluno.name}</Text>
+            <Text style={styles.alunoClass}>Turma: {aluno.class}</Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#666"
+          />
+        </TouchableOpacity>
+        
+        {isExpanded && (
+          <View style={styles.alunoContent}>
+            {alunoComportamentos.length > 0 ? (
+              alunoComportamentos.map(comportamento => renderComportamentoCard(comportamento))
+            ) : (
+              <Text style={styles.noComportamentos}>Nenhum registro de comportamento</Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -127,13 +177,9 @@ export default function ComportamentoScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={comportamentos}
-        renderItem={renderComportamento}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
-      />
+      <ScrollView style={styles.content}>
+        {alunos.map(aluno => renderAlunoAccordion(aluno))}
+      </ScrollView>
 
       <Modal
         visible={modalVisible}
@@ -215,34 +261,67 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 10,
   },
-  listContainer: {
+  content: {
+    flex: 1,
     padding: 15,
   },
-  card: {
+  alunoAccordion: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 15,
     marginBottom: 10,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  cardDate: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#007AFF',
+  alunoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#f8f9fa',
   },
-  cardAluno: {
-    fontWeight: 'bold',
-    marginBottom: 5,
+  alunoHeaderContent: {
+    flex: 1,
+  },
+  alunoName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
   },
-  cardObs: {
-    fontSize: 15,
-    color: '#444',
-    marginBottom: 2,
+  alunoClass: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  alunoContent: {
+    padding: 15,
+    backgroundColor: '#fff',
+  },
+  comportamentoCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  comportamentoDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 8,
+  },
+  comportamentoObs: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  noComportamentos: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+    padding: 10,
   },
   modalOverlay: {
     flex: 1,

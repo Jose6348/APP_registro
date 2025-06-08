@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Modal,
   TextInput,
   SafeAreaView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
+import { getApiUrl } from '../../utils/api';
 
 // Tipo para um aluno
 interface Student {
@@ -43,6 +43,7 @@ export default function SinaisVitaisScreen() {
   const [sinais, setSinais] = useState<SinalVital[]>([]);
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
   const [form, setForm] = useState<Omit<SinalVital, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
     data: '',
@@ -109,19 +110,71 @@ export default function SinaisVitaisScreen() {
     }
   };
 
-  const getAlunoNome = (alunoId: { _id: string; name: string }) => {
-    return alunoId.name;
+  const toggleAluno = (alunoId: string) => {
+    setExpandedAlunos(prev => ({
+      ...prev,
+      [alunoId]: !prev[alunoId]
+    }));
   };
 
-  const renderSinal = ({ item }: { item: SinalVital }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
-      <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
-      <Text>Pressão Arterial: {item.pressaoArterial} mmHg</Text>
-      <Text>Frequência Cardíaca: {item.frequenciaCardiaca} bpm</Text>
-      <Text>Frequência Respiratória: {item.frequenciaRespiratoria} irpm</Text>
+  const getSinaisByAluno = (alunoId: string) => {
+    return sinais.filter(sinal => sinal.alunoId._id === alunoId)
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  };
+
+  const renderSinalCard = (sinal: SinalVital) => (
+    <View style={styles.sinalCard}>
+      <Text style={styles.sinalDate}>Data: {new Date(sinal.data).toLocaleDateString()}</Text>
+      <View style={styles.sinalGrid}>
+        <View style={styles.sinalItem}>
+          <Text style={styles.sinalLabel}>Pressão Arterial</Text>
+          <Text style={styles.sinalValue}>{sinal.pressaoArterial} mmHg</Text>
+        </View>
+        <View style={styles.sinalItem}>
+          <Text style={styles.sinalLabel}>Freq. Cardíaca</Text>
+          <Text style={styles.sinalValue}>{sinal.frequenciaCardiaca} bpm</Text>
+        </View>
+        <View style={styles.sinalItem}>
+          <Text style={styles.sinalLabel}>Freq. Respiratória</Text>
+          <Text style={styles.sinalValue}>{sinal.frequenciaRespiratoria} irpm</Text>
+        </View>
+      </View>
     </View>
   );
+
+  const renderAlunoAccordion = (aluno: Student) => {
+    const alunoSinais = getSinaisByAluno(aluno._id);
+    const isExpanded = expandedAlunos[aluno._id];
+
+    return (
+      <View key={aluno._id} style={styles.alunoAccordion}>
+        <TouchableOpacity
+          style={styles.alunoHeader}
+          onPress={() => toggleAluno(aluno._id)}
+        >
+          <View style={styles.alunoHeaderContent}>
+            <Text style={styles.alunoName}>{aluno.name}</Text>
+            <Text style={styles.alunoClass}>Turma: {aluno.class}</Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#666"
+          />
+        </TouchableOpacity>
+        
+        {isExpanded && (
+          <View style={styles.alunoContent}>
+            {alunoSinais.length > 0 ? (
+              alunoSinais.map(sinal => renderSinalCard(sinal))
+            ) : (
+              <Text style={styles.noSinais}>Nenhum sinal vital registrado</Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -135,13 +188,9 @@ export default function SinaisVitaisScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={sinais}
-        renderItem={renderSinal}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
-      />
+      <ScrollView style={styles.content}>
+        {alunos.map(aluno => renderAlunoAccordion(aluno))}
+      </ScrollView>
 
       <Modal
         visible={modalVisible}
@@ -236,29 +285,81 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 10,
   },
-  listContainer: {
+  content: {
+    flex: 1,
     padding: 15,
   },
-  card: {
+  alunoAccordion: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 15,
     marginBottom: 10,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  cardDate: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#007AFF',
+  alunoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#f8f9fa',
   },
-  cardAluno: {
-    fontWeight: 'bold',
-    marginBottom: 5,
+  alunoHeaderContent: {
+    flex: 1,
+  },
+  alunoName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+  },
+  alunoClass: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  alunoContent: {
+    padding: 15,
+    backgroundColor: '#fff',
+  },
+  sinalCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  sinalDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 8,
+  },
+  sinalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  sinalItem: {
+    width: '48%',
+    marginBottom: 8,
+  },
+  sinalLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  sinalValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  noSinais: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+    padding: 10,
   },
   modalOverlay: {
     flex: 1,

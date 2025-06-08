@@ -13,19 +13,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Pressable,
 } from 'react-native';
+import { getApiUrl } from '../../utils/api';
 
 // API URL configuration
-const getApiUrl = () => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000/api'; // Android Emulator
-  } else if (Platform.OS === 'ios') {
-    return 'http://localhost:3000/api'; // iOS Simulator
-  } else {
-    return 'http://localhost:3000/api'; // Web
-  }
-};
-
 const API_URL = getApiUrl();
 
 // Student type
@@ -42,6 +36,7 @@ export default function AlunosScreen() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedTurmas, setExpandedTurmas] = useState<{ [key: string]: boolean }>({});
   const [newStudent, setNewStudent] = useState({
     name: '',
     age: '',
@@ -145,60 +140,141 @@ export default function AlunosScreen() {
     Alert.alert('Editar Aluno', 'Funcionalidade em desenvolvimento');
   };
 
+  const toggleTurma = (turma: string) => {
+    setExpandedTurmas(prev => ({
+      ...prev,
+      [turma]: !prev[turma]
+    }));
+  };
+
+  const getStudentsByTurma = () => {
+    const turmas = [...new Set(students.map(student => student.class))].sort();
+    return turmas.map(turma => ({
+      turma,
+      alunos: students.filter(student => student.class === turma)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    }));
+  };
+
   const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchQuery.toLowerCase())
+    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.class.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderStudentItem = ({ item }: { item: Student }) => (
-    <TouchableOpacity style={styles.studentCard}>
-      <View style={styles.studentInfo}>
-        <Text style={styles.studentName}>{item.name}</Text>
-        <Text style={styles.studentDetails}>Idade: {item.age} anos</Text>
-        <Text style={styles.studentDetails}>Turma: {item.class}</Text>
+  const renderStudentCard = (student: Student) => (
+    <Pressable 
+      style={({ pressed }) => [
+        styles.studentCard,
+        pressed && styles.studentCardPressed
+      ]}
+      onPress={() => handleEditStudent(student)}
+    >
+      <View style={styles.studentAvatar}>
+        <Text style={styles.avatarText}>
+          {student.name.charAt(0).toUpperCase()}
+        </Text>
       </View>
-      <TouchableOpacity 
-        style={styles.editButton}
-        onPress={() => handleEditStudent(item)}
-      >
-        <Ionicons name="pencil" size={20} color="#007AFF" />
-      </TouchableOpacity>
-    </TouchableOpacity>
+      <View style={styles.studentInfo}>
+        <Text style={styles.studentName}>{student.name}</Text>
+        <View style={styles.studentDetails}>
+          <View style={styles.detailItem}>
+            <Ionicons name="calendar" size={14} color="#666" />
+            <Text style={styles.detailText}>{student.age} anos</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="school" size={14} color="#666" />
+            <Text style={styles.detailText}>{student.class}</Text>
+          </View>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#666" />
+    </Pressable>
   );
+
+  const renderTurmaSection = (turma: string, alunos: Student[]) => {
+    const isExpanded = expandedTurmas[turma];
+    const filteredAlunos = alunos.filter(student =>
+      student.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (searchQuery && filteredAlunos.length === 0) return null;
+
+    return (
+      <View key={turma} style={styles.turmaSection}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.turmaHeader,
+            pressed && styles.turmaHeaderPressed
+          ]}
+          onPress={() => toggleTurma(turma)}
+        >
+          <View style={styles.turmaHeaderContent}>
+            <Text style={styles.turmaTitle}>Turma {turma}</Text>
+            <Text style={styles.turmaCount}>{filteredAlunos.length} alunos</Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#666"
+          />
+        </Pressable>
+
+        {isExpanded && (
+          <View style={styles.turmaContent}>
+            {filteredAlunos.map(student => renderStudentCard(student))}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Alunos</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleAddStudent}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.addButton,
+            pressed && styles.addButtonPressed
+          ]}
+          onPress={handleAddStudent}
+        >
           <Ionicons name="add-circle" size={24} color="#007AFF" />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar alunos..."
+          placeholder="Buscar alunos ou turmas..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
 
-      <FlatList
-        data={filteredStudents}
-        renderItem={renderStudentItem}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.listContainer}
-        refreshing={loading}
-        onRefresh={fetchStudents}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {loading ? 'Carregando alunos...' : 'Nenhum aluno encontrado'}
-            </Text>
-          </View>
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={fetchStudents} />
         }
-      />
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Carregando alunos...</Text>
+          </View>
+        ) : filteredStudents.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people" size={48} color="#666" />
+            <Text style={styles.emptyText}>Nenhum aluno encontrado</Text>
+          </View>
+        ) : (
+          getStudentsByTurma().map(({ turma, alunos }) => 
+            renderTurmaSection(turma, alunos)
+          )
+        )}
+      </ScrollView>
 
       <Modal
         animationType="slide"
@@ -298,6 +374,11 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: 8,
+    borderRadius: 20,
+  },
+  addButtonPressed: {
+    backgroundColor: '#f0f0f0',
+    transform: [{ scale: 0.95 }],
   },
   searchContainer: {
     flexDirection: 'row',
@@ -320,39 +401,122 @@ const styles = StyleSheet.create({
     height: 45,
     fontSize: 16,
   },
-  listContainer: {
-    padding: 15,
+  content: {
+    flex: 1,
   },
-  studentCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
+  turmaSection: {
+    marginBottom: 15,
+  },
+  turmaHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 15,
+    marginHorizontal: 15,
+    borderRadius: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  turmaHeaderPressed: {
+    backgroundColor: '#f0f0f0',
+    transform: [{ scale: 0.98 }],
+  },
+  turmaHeaderContent: {
+    flex: 1,
+  },
+  turmaTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  turmaCount: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  turmaContent: {
+    padding: 15,
+  },
+  studentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  studentCardPressed: {
+    backgroundColor: '#f0f0f0',
+    transform: [{ scale: 0.98 }],
+  },
+  studentAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   studentInfo: {
     flex: 1,
   },
   studentName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   studentDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  detailText: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 2,
+    marginLeft: 4,
   },
-  editButton: {
-    padding: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -415,16 +579,5 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
 }); 

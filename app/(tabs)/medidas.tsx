@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Modal,
   TextInput,
   SafeAreaView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
+import { getApiUrl } from '../../utils/api';
 
 // Tipo para um aluno
 interface Student {
@@ -45,6 +45,7 @@ export default function MedidasScreen() {
   const [medidas, setMedidas] = useState<Medida[]>([]);
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
   const [form, setForm] = useState<Omit<Medida, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
     data: '',
@@ -119,17 +120,79 @@ export default function MedidasScreen() {
     return alunoId.name;
   };
 
-  const renderMedida = ({ item }: { item: Medida }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardDate}>Data: {new Date(item.data).toLocaleDateString()}</Text>
-      <Text style={styles.cardAluno}>Aluno: {getAlunoNome(item.alunoId)}</Text>
-      <Text>Peso: {item.peso} kg</Text>
-      <Text>Altura: {item.altura} m</Text>
-      <Text>Circ. Braço: {item.circunferenciaBraco} cm</Text>
-      <Text>Circ. Cintura: {item.circunferenciaCintura} cm</Text>
-      <Text>Circ. Quadril: {item.circunferenciaQuadril} cm</Text>
+  const toggleAluno = (alunoId: string) => {
+    setExpandedAlunos(prev => ({
+      ...prev,
+      [alunoId]: !prev[alunoId]
+    }));
+  };
+
+  const getMedidasByAluno = (alunoId: string) => {
+    return medidas.filter(medida => medida.alunoId._id === alunoId)
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  };
+
+  const renderMedidaCard = (medida: Medida) => (
+    <View style={styles.medidaCard}>
+      <Text style={styles.medidaDate}>Data: {new Date(medida.data).toLocaleDateString()}</Text>
+      <View style={styles.medidaGrid}>
+        <View style={styles.medidaItem}>
+          <Text style={styles.medidaLabel}>Peso</Text>
+          <Text style={styles.medidaValue}>{medida.peso} kg</Text>
+        </View>
+        <View style={styles.medidaItem}>
+          <Text style={styles.medidaLabel}>Altura</Text>
+          <Text style={styles.medidaValue}>{medida.altura} m</Text>
+        </View>
+        <View style={styles.medidaItem}>
+          <Text style={styles.medidaLabel}>Braço</Text>
+          <Text style={styles.medidaValue}>{medida.circunferenciaBraco} cm</Text>
+        </View>
+        <View style={styles.medidaItem}>
+          <Text style={styles.medidaLabel}>Cintura</Text>
+          <Text style={styles.medidaValue}>{medida.circunferenciaCintura} cm</Text>
+        </View>
+        <View style={styles.medidaItem}>
+          <Text style={styles.medidaLabel}>Quadril</Text>
+          <Text style={styles.medidaValue}>{medida.circunferenciaQuadril} cm</Text>
+        </View>
+      </View>
     </View>
   );
+
+  const renderAlunoAccordion = (aluno: Student) => {
+    const alunoMedidas = getMedidasByAluno(aluno._id);
+    const isExpanded = expandedAlunos[aluno._id];
+
+    return (
+      <View key={aluno._id} style={styles.alunoAccordion}>
+        <TouchableOpacity
+          style={styles.alunoHeader}
+          onPress={() => toggleAluno(aluno._id)}
+        >
+          <View style={styles.alunoHeaderContent}>
+            <Text style={styles.alunoName}>{aluno.name}</Text>
+            <Text style={styles.alunoClass}>Turma: {aluno.class}</Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#666"
+          />
+        </TouchableOpacity>
+        
+        {isExpanded && (
+          <View style={styles.alunoContent}>
+            {alunoMedidas.length > 0 ? (
+              alunoMedidas.map(medida => renderMedidaCard(medida))
+            ) : (
+              <Text style={styles.noMedidas}>Nenhuma medida registrada</Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -143,13 +206,9 @@ export default function MedidasScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={medidas}
-        renderItem={renderMedida}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#666' }}>Nenhum registro ainda.</Text>}
-      />
+      <ScrollView style={styles.content}>
+        {alunos.map(aluno => renderAlunoAccordion(aluno))}
+      </ScrollView>
 
       <Modal
         visible={modalVisible}
@@ -259,29 +318,81 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 10,
   },
-  listContainer: {
+  content: {
+    flex: 1,
     padding: 15,
   },
-  card: {
+  alunoAccordion: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 15,
     marginBottom: 10,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  cardDate: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#007AFF',
+  alunoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#f8f9fa',
   },
-  cardAluno: {
-    fontWeight: 'bold',
-    marginBottom: 5,
+  alunoHeaderContent: {
+    flex: 1,
+  },
+  alunoName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+  },
+  alunoClass: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  alunoContent: {
+    padding: 15,
+    backgroundColor: '#fff',
+  },
+  medidaCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  medidaDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 8,
+  },
+  medidaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  medidaItem: {
+    width: '48%',
+    marginBottom: 8,
+  },
+  medidaLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  medidaValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  noMedidas: {
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
+    padding: 10,
   },
   modalOverlay: {
     flex: 1,
