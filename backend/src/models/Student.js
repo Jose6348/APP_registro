@@ -15,6 +15,11 @@ const studentSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  cid: {
+    type: String,
+    required: true,
+    trim: true
   }
 }, {
   timestamps: true

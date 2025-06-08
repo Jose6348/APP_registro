@@ -17,6 +17,7 @@ interface Student {
   name: string;
   age: number;
   class: string;
+  cid: string;
 }
 
 interface Medida {
@@ -64,6 +65,11 @@ export default function RelatoriosScreen() {
   const [sinais, setSinais] = useState<SinalVital[]>([]);
   const [comportamentos, setComportamentos] = useState<Comportamento[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const formatarData = (dataString: string) => {
+    const [ano, mes, dia] = dataString.split('T')[0].split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
 
   useEffect(() => {
     fetchAlunos();
@@ -123,6 +129,7 @@ export default function RelatoriosScreen() {
       <Text style={styles.alunoName}>{item.name}</Text>
       <Text style={styles.alunoInfo}>Idade: {item.age} anos</Text>
       <Text style={styles.alunoInfo}>Turma: {item.class}</Text>
+      <Text style={styles.alunoInfo}>CID: {item.cid}</Text>
     </TouchableOpacity>
   );
 
@@ -133,7 +140,7 @@ export default function RelatoriosScreen() {
         medidas.map(medida => (
           <View key={medida._id} style={styles.recordCard}>
             <Text style={styles.recordDate}>
-              Data: {new Date(medida.data).toLocaleDateString()}
+              Data do registro: {formatarData(medida.data)}
             </Text>
             <Text>Peso: {medida.peso} kg</Text>
             <Text>Altura: {medida.altura} m</Text>
@@ -155,7 +162,7 @@ export default function RelatoriosScreen() {
         sinais.map(sinal => (
           <View key={sinal._id} style={styles.recordCard}>
             <Text style={styles.recordDate}>
-              Data: {new Date(sinal.data).toLocaleDateString()}
+              Data do registro: {formatarData(sinal.data)}
             </Text>
             <Text>Pressão Arterial: {sinal.pressaoArterial} mmHg</Text>
             <Text>Frequência Cardíaca: {sinal.frequenciaCardiaca} bpm</Text>
@@ -175,7 +182,7 @@ export default function RelatoriosScreen() {
         comportamentos.map(comportamento => (
           <View key={comportamento._id} style={styles.recordCard}>
             <Text style={styles.recordDate}>
-              Data: {new Date(comportamento.data).toLocaleDateString()}
+              Data do registro: {formatarData(comportamento.data)}
             </Text>
             <Text>Observação: {comportamento.observacao}</Text>
           </View>

@@ -28,6 +28,7 @@ type Student = {
   name: string;
   age: number;
   class: string;
+  cid: string;
 };
 
 export default function AlunosScreen() {
@@ -41,6 +42,7 @@ export default function AlunosScreen() {
     name: '',
     age: '',
     class: '',
+    cid: '',
   });
 
   // Fetch students
@@ -67,7 +69,7 @@ export default function AlunosScreen() {
   }, []);
 
   const handleAddStudent = () => {
-    setNewStudent({ name: '', age: '', class: '' });
+    setNewStudent({ name: '', age: '', class: '', cid: '' });
     setModalVisible(true);
   };
 
@@ -85,6 +87,10 @@ export default function AlunosScreen() {
       Alert.alert('Erro', 'Por favor, insira a turma do aluno');
       return;
     }
+    if (!newStudent.cid.trim()) {
+      Alert.alert('Erro', 'Por favor, insira o CID do aluno');
+      return;
+    }
 
     const age = parseInt(newStudent.age);
     if (isNaN(age) || age <= 0) {
@@ -94,22 +100,21 @@ export default function AlunosScreen() {
 
     try {
       setSubmitting(true);
-      console.log('Enviando dados:', {
-        name: newStudent.name,
+      const studentData = {
+        name: newStudent.name.trim(),
         age: age,
-        class: newStudent.class,
-      });
+        class: newStudent.class.trim(),
+        cid: newStudent.cid.trim()
+      };
+
+      console.log('Enviando dados:', studentData);
 
       const response = await fetch(`${API_URL}/students`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: newStudent.name,
-          age: age,
-          class: newStudent.class,
-        }),
+        body: JSON.stringify(studentData),
       });
 
       console.log('Resposta do servidor:', response.status);
@@ -124,7 +129,7 @@ export default function AlunosScreen() {
 
       setStudents(prevStudents => [...prevStudents, addedStudent]);
       setModalVisible(false);
-      setNewStudent({ name: '', age: '', class: '' });
+      setNewStudent({ name: '', age: '', class: '', cid: '' });
       Alert.alert('Sucesso', 'Aluno adicionado com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar aluno:', error);
@@ -184,6 +189,10 @@ export default function AlunosScreen() {
           <View style={styles.detailItem}>
             <Ionicons name="school" size={14} color="#666" />
             <Text style={styles.detailText}>{student.class}</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="medical" size={14} color="#666" />
+            <Text style={styles.detailText}>CID: {student.cid}</Text>
           </View>
         </View>
       </View>
@@ -314,13 +323,21 @@ export default function AlunosScreen() {
               editable={!submitting}
             />
 
+            <TextInput
+              style={styles.input}
+              placeholder="CID"
+              value={newStudent.cid}
+              onChangeText={(text) => setNewStudent({ ...newStudent, cid: text })}
+              editable={!submitting}
+            />
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => {
                   if (!submitting) {
                     setModalVisible(false);
-                    setNewStudent({ name: '', age: '', class: '' });
+                    setNewStudent({ name: '', age: '', class: '', cid: '' });
                   }
                 }}
                 disabled={submitting}

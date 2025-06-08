@@ -30,7 +30,8 @@ router.post('/', async (req, res) => {
   const student = new Student({
     name: req.body.name,
     age: req.body.age,
-    class: req.body.class
+    class: req.body.class,
+    cid: req.body.cid
   });
 
   try {
@@ -52,6 +53,7 @@ router.put('/:id', async (req, res) => {
     if (req.body.name) student.name = req.body.name;
     if (req.body.age) student.age = req.body.age;
     if (req.body.class) student.class = req.body.class;
+    if (req.body.cid) student.cid = req.body.cid;
 
     const updatedStudent = await student.save();
     res.json(updatedStudent);

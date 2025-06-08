@@ -42,9 +42,19 @@ export default function ComportamentoScreen() {
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
+  const formatarData = (dataString: string) => {
+    const [ano, mes, dia] = dataString.split('T')[0].split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const formatarDataParaAPI = (dataString: string) => {
+    const [dia, mes, ano] = dataString.split('/');
+    return `${ano}-${mes}-${dia}`;
+  };
+
   const [form, setForm] = useState<Omit<Comportamento, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
-    data: '',
+    data: formatarData(new Date().toISOString()),
     observacao: '',
   });
 
@@ -78,12 +88,16 @@ export default function ComportamentoScreen() {
 
   const handleAddComportamento = async () => {
     try {
+      const dataFormatada = formatarDataParaAPI(form.data);
       const response = await fetch(`${API_URL}/comportamentos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          data: dataFormatada
+        }),
       });
 
       if (!response.ok) {
@@ -94,7 +108,7 @@ export default function ComportamentoScreen() {
       setComportamentos([novoComportamento, ...comportamentos]);
       setForm({
         alunoId: alunos[0]?._id || '',
-        data: '',
+        data: formatarData(new Date().toISOString()),
         observacao: '',
       });
       setModalVisible(false);
@@ -117,13 +131,17 @@ export default function ComportamentoScreen() {
 
   const getComportamentosByAluno = (alunoId: string) => {
     return comportamentos.filter(comportamento => comportamento.alunoId._id === alunoId)
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      .sort((a, b) => {
+        const dataA = new Date(formatarDataParaAPI(formatarData(a.data)));
+        const dataB = new Date(formatarDataParaAPI(formatarData(b.data)));
+        return dataB.getTime() - dataA.getTime();
+      });
   };
 
   const renderComportamentoCard = (comportamento: Comportamento) => (
     <View style={styles.comportamentoCard}>
       <Text style={styles.comportamentoDate}>
-        Data: {new Date(comportamento.data).toLocaleDateString()}
+        Data do registro: {formatarData(comportamento.data)}
       </Text>
       <Text style={styles.comportamentoObs}>
         {comportamento.observacao}
@@ -205,7 +223,7 @@ export default function ComportamentoScreen() {
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Data (AAAA-MM-DD)"
+                placeholder="Data (DD/MM/AAAA)"
                 value={form.data}
                 onChangeText={text => setForm(f => ({ ...f, data: text }))}
               />

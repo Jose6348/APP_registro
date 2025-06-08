@@ -46,9 +46,14 @@ export default function MedidasScreen() {
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
+  const formatarData = (dataString: string) => {
+    const [ano, mes, dia] = dataString.split('T')[0].split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
+
   const [form, setForm] = useState<Omit<Medida, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
-    data: '',
+    data: formatarData(new Date().toISOString()),
     peso: '',
     altura: '',
     circunferenciaBraco: '',
@@ -102,7 +107,7 @@ export default function MedidasScreen() {
       setMedidas([novaMedida, ...medidas]);
       setForm({
         alunoId: alunos[0]?._id || '',
-        data: '',
+        data: formatarData(new Date().toISOString()),
         peso: '',
         altura: '',
         circunferenciaBraco: '',
@@ -134,7 +139,7 @@ export default function MedidasScreen() {
 
   const renderMedidaCard = (medida: Medida) => (
     <View style={styles.medidaCard}>
-      <Text style={styles.medidaDate}>Data: {new Date(medida.data).toLocaleDateString()}</Text>
+      <Text style={styles.medidaDate}>Data do registro: {formatarData(medida.data)}</Text>
       <View style={styles.medidaGrid}>
         <View style={styles.medidaItem}>
           <Text style={styles.medidaLabel}>Peso</Text>
@@ -232,9 +237,10 @@ export default function MedidasScreen() {
                   ))}
                 </Picker>
               </View>
+              <Text style={styles.label}>Data do Registro</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Data (AAAA-MM-DD)"
+                placeholder="Data e Hora do Registro"
                 value={form.data}
                 onChangeText={text => setForm(f => ({ ...f, data: text }))}
               />

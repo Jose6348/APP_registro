@@ -44,9 +44,19 @@ export default function SinaisVitaisScreen() {
   const [alunos, setAlunos] = useState<Student[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedAlunos, setExpandedAlunos] = useState<{ [key: string]: boolean }>({});
+  const formatarData = (dataString: string) => {
+    const [ano, mes, dia] = dataString.split('T')[0].split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const formatarDataParaAPI = (dataString: string) => {
+    const [dia, mes, ano] = dataString.split('/');
+    return `${ano}-${mes}-${dia}`;
+  };
+
   const [form, setForm] = useState<Omit<SinalVital, '_id' | 'alunoId'> & { alunoId: string }>({
     alunoId: '',
-    data: '',
+    data: formatarData(new Date().toISOString()),
     pressaoArterial: '',
     frequenciaCardiaca: '',
     frequenciaRespiratoria: '',
@@ -82,12 +92,16 @@ export default function SinaisVitaisScreen() {
 
   const handleAddSinal = async () => {
     try {
+      const dataFormatada = formatarDataParaAPI(form.data);
       const response = await fetch(`${API_URL}/sinais-vitais`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          data: dataFormatada
+        }),
       });
 
       if (!response.ok) {
@@ -98,7 +112,7 @@ export default function SinaisVitaisScreen() {
       setSinais([novoSinal, ...sinais]);
       setForm({
         alunoId: alunos[0]?._id || '',
-        data: '',
+        data: formatarData(new Date().toISOString()),
         pressaoArterial: '',
         frequenciaCardiaca: '',
         frequenciaRespiratoria: '',
@@ -119,12 +133,16 @@ export default function SinaisVitaisScreen() {
 
   const getSinaisByAluno = (alunoId: string) => {
     return sinais.filter(sinal => sinal.alunoId._id === alunoId)
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      .sort((a, b) => {
+        const dataA = new Date(formatarDataParaAPI(formatarData(a.data)));
+        const dataB = new Date(formatarDataParaAPI(formatarData(b.data)));
+        return dataB.getTime() - dataA.getTime();
+      });
   };
 
   const renderSinalCard = (sinal: SinalVital) => (
     <View style={styles.sinalCard}>
-      <Text style={styles.sinalDate}>Data: {new Date(sinal.data).toLocaleDateString()}</Text>
+      <Text style={styles.sinalDate}>Data do registro: {formatarData(sinal.data)}</Text>
       <View style={styles.sinalGrid}>
         <View style={styles.sinalItem}>
           <Text style={styles.sinalLabel}>Pressão Arterial</Text>
@@ -216,7 +234,7 @@ export default function SinaisVitaisScreen() {
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Data (AAAA-MM-DD)"
+                placeholder="Data (DD/MM/AAAA)"
                 value={form.data}
                 onChangeText={text => setForm(f => ({ ...f, data: text }))}
               />

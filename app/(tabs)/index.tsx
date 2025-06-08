@@ -44,7 +44,7 @@ export default function HomeScreen() {
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalClasses: 0,
-    totalTeachers: 25 // Mantendo este valor fixo por enquanto
+    totalCids: 0
   });
   const windowWidth = Dimensions.get('window').width;
   const isMobile = windowWidth < 768;
@@ -65,10 +65,14 @@ export default function HomeScreen() {
       const uniqueClasses = new Set(students.map((student: any) => student.class));
       const totalClasses = uniqueClasses.size;
 
+      // Conta o número de CIDs únicos
+      const uniqueCids = new Set(students.map((student: any) => student.cid));
+      const totalCids = uniqueCids.size;
+
       setStats({
         totalStudents,
         totalClasses,
-        totalTeachers: 25 // Mantendo este valor fixo por enquanto
+        totalCids
       });
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
@@ -182,8 +186,8 @@ export default function HomeScreen() {
                     </View>
                     <View style={styles.headerStatDivider} />
                     <View style={styles.headerStat}>
-                      <Text style={styles.headerStatNumber}>{stats.totalTeachers}</Text>
-                      <Text style={styles.headerStatLabel}>Professores</Text>
+                      <Text style={styles.headerStatNumber}>{stats.totalCids}</Text>
+                      <Text style={styles.headerStatLabel}>CIDs</Text>
                     </View>
                   </View>
                 </View>
