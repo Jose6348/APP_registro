@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,9 @@ import {
   ScrollView,
   Dimensions,
   Pressable,
+  ImageBackground,
 } from 'react-native';
+import { getApiUrl } from '../../utils/api';
 
 import Alunos from './alunos';
 import Medidas from './medidas';
@@ -40,8 +42,39 @@ export default function HomeScreen() {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<RoutePath>('/');
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalClasses: 0,
+    totalTeachers: 25 // Mantendo este valor fixo por enquanto
+  });
   const windowWidth = Dimensions.get('window').width;
   const isMobile = windowWidth < 768;
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${getApiUrl()}/students`);
+      const students = await response.json();
+      
+      // Conta o número total de alunos
+      const totalStudents = students.length;
+      
+      // Conta o número de turmas únicas
+      const uniqueClasses = new Set(students.map((student: any) => student.class));
+      const totalClasses = uniqueClasses.size;
+
+      setStats({
+        totalStudents,
+        totalClasses,
+        totalTeachers: 25 // Mantendo este valor fixo por enquanto
+      });
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas:', error);
+    }
+  };
 
   const handleLogout = () => {
     router.replace('/login');
@@ -132,11 +165,33 @@ export default function HomeScreen() {
         const quickActions = menuItems.filter((m) => m.route !== '/');
         return (
           <>
-            <View style={styles.headerContent}>
-              <Text style={styles.headerTitle}>Dashboard</Text>
-              <Text style={styles.subtitle}>Sistema de Acompanhamento • APAE Araras</Text>
+            <View style={styles.headerContainer}>
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>Bem-vindo!</Text>
+                <Text style={styles.subtitle}>Sistema de Acompanhamento APAE Araras</Text>
+              </View>
+              <View style={styles.headerDecoration} />
             </View>
 
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <Ionicons name="people" size={24} color="#4f46e5" />
+                <Text style={styles.statNumber}>{stats.totalStudents}</Text>
+                <Text style={styles.statLabel}>Alunos</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="calendar" size={24} color="#4f46e5" />
+                <Text style={styles.statNumber}>{stats.totalClasses}</Text>
+                <Text style={styles.statLabel}>Turmas</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="school" size={24} color="#4f46e5" />
+                <Text style={styles.statNumber}>{stats.totalTeachers}</Text>
+                <Text style={styles.statLabel}>Professores</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Acesso Rápido</Text>
             <View style={styles.quickGrid}>
               {quickActions.map((action) => (
                 <Pressable
@@ -144,27 +199,37 @@ export default function HomeScreen() {
                   style={styles.quickCard}
                   onPress={() => setCurrentRoute(action.route)}
                 >
-                  <Ionicons name={action.icon} size={28} color="#1e3a8a" />
+                  <View style={styles.quickCardIcon}>
+                    <Ionicons name={action.icon} size={28} color="#4f46e5" />
+                  </View>
                   <Text style={styles.quickCardText}>{action.title}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Bem‑vindo ao Sistema</Text>
-              <Text style={styles.cardDescription}>
-                Este aplicativo otimiza o acompanhamento dos alunos da APAE Araras,
-                facilitando o registro e monitoramento de dados importantes para o
-                desenvolvimento de cada aluno.
-              </Text>
-            </View>
+            <View style={styles.infoSection}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardHeader}>
+                  <Ionicons name="information-circle" size={24} color="#4f46e5" />
+                  <Text style={styles.cardTitle}>Sobre o Sistema</Text>
+                </View>
+                <Text style={styles.cardDescription}>
+                  Este aplicativo otimiza o acompanhamento dos alunos da APAE Araras,
+                  facilitando o registro e monitoramento de dados importantes para o
+                  desenvolvimento de cada aluno.
+                </Text>
+              </View>
 
-            <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Próximos Passos</Text>
-              <Text style={styles.cardDescription}>
-                Use os atalhos acima ou o menu lateral para navegar pelos registros e
-                relatórios detalhados.
-              </Text>
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardHeader}>
+                  <Ionicons name="rocket" size={24} color="#4f46e5" />
+                  <Text style={styles.cardTitle}>Próximos Passos</Text>
+                </View>
+                <Text style={styles.cardDescription}>
+                  Use os atalhos acima ou o menu lateral para navegar pelos registros e
+                  relatórios detalhados.
+                </Text>
+              </View>
             </View>
           </>
         );
@@ -306,21 +371,75 @@ const styles = StyleSheet.create({
   },
 
   /* Header */
-  headerContent: {
+  headerContainer: {
     marginBottom: 24,
+    position: 'relative',
+  },
+  headerContent: {
+    padding: 20,
+    backgroundColor: '#4f46e5',
+    borderRadius: 16,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#1e3a8a',
+    color: '#fff',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#475569',
+    fontSize: 16,
+    color: '#e0e7ff',
+  },
+  headerDecoration: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    width: 150,
+    height: 150,
+    backgroundColor: '#818cf8',
+    opacity: 0.2,
+    borderRadius: 75,
+  },
+
+  /* Stats */
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
     marginTop: 4,
   },
 
   /* Quick actions */
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 16,
+  },
   quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -330,44 +449,59 @@ const styles = StyleSheet.create({
   quickCard: {
     backgroundColor: '#fff',
     width: '48%',
-    aspectRatio: 1,
-    marginBottom: 12,
+    padding: 20,
+    marginBottom: 16,
     borderRadius: 16,
     elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  quickCardIcon: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#eef2ff',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 12,
   },
   quickCardText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#1e3a8a',
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
   },
 
-  /* Info cards */
+  /* Info section */
+  infoSection: {
+    marginBottom: 24,
+  },
   infoCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
     elevation: 2,
-    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  infoCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 8,
-    color: '#1e3a8a',
+    color: '#1e293b',
+    marginLeft: 8,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#475569',
+    color: '#64748b',
+    lineHeight: 20,
   },
 });
